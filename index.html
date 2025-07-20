@@ -3,131 +3,122 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Wall Clock Weather</title>
+  <title>Wall Clock</title>
   <style>
-    body {
+    html, body {
       margin: 0;
       padding: 0;
+      height: 100%;
+      width: 100%;
+      user-select: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
+    }
+
+    body {
       font-family: sans-serif;
       background: #111;
       color: #fff;
       display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
-      height: 100vh;
+      justify-content: center;
       text-align: center;
     }
 
-    h1#clock {
-      font-size: 5rem;
-      margin-top: 2rem;
+    #container {
+      width: 90vmin;
+      height: 90vmin;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #clock, #date-human {
+      margin: 0;
+      line-height: 0.9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #clock {
+      flex: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     #date-human {
-      font-size: 2rem;
-      margin-top: 0.5rem;
-    }
-
-    #date-yyyymmdd {
-      font-size: 1.5rem;
-      margin-top: 0.25rem;
-      color: #aaa;
-    }
-
-    #controls {
-      margin-top: 2rem;
-    }
-
-    label {
-      display: block;
-      margin: 0.5rem 0 0.25rem;
-    }
-
-    select, input[type="date"], input[type="text"] {
-      margin: 0.5rem;
-      padding: 0.5rem;
-      font-size: 1rem;
-    }
-
-    button {
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
-      cursor: pointer;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
   </style>
 </head>
-<body>
-  <h1 id="clock">--:--:--</h1>
-  <div id="date-human">Loading date...</div>
-  <div id="date-yyyymmdd">YYYYMMDD</div>
-
-  <div id="controls">
-    <label for="location-input">Location</label>
-    <input type="text" id="location-input" placeholder="City name or lat,lon">
-
-    <label for="timezone-select">Timezone</label>
-    <select id="timezone-select"></select>
-
-    <label for="date-override">Override Date</label>
-    <input type="date" id="date-override">
-
-    <button onclick="savePreferences()">Save Preferences</button>
+<body ondblclick="toggleFullScreen()">
+  <div id="container">
+    <h1 id="clock">--:--:--</h1>
+    <div id="date-human">Loading date...</div>
   </div>
 
   <script>
-    const tzSelect = document.getElementById("timezone-select");
-    const allTimezones = Intl.supportedValuesOf('timeZone');
-    allTimezones.forEach(tz => {
-      const opt = document.createElement("option");
-      opt.value = tz;
-      opt.textContent = tz;
-      tzSelect.appendChild(opt);
-    });
-
-    const savedTZ = localStorage.getItem("userTimezone");
-    if (savedTZ) tzSelect.value = savedTZ;
-
-    document.getElementById("location-input").value = localStorage.getItem("userLocation") || "";
-    document.getElementById("date-override").value = localStorage.getItem("overrideDate") || "";
-
-    function savePreferences() {
-      const loc = document.getElementById("location-input").value.trim();
-      const tz = document.getElementById("timezone-select").value;
-      const date = document.getElementById("date-override").value;
-
-      if (loc) localStorage.setItem("userLocation", loc);
-      if (tz && allTimezones.includes(tz)) localStorage.setItem("userTimezone", tz);
-      if (date) localStorage.setItem("overrideDate", date);
-
-      location.reload();
-    }
-
-    function formatYYYYMMDD(date) {
-      return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
-    }
-
-    const userTZ = savedTZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const dateOverride = localStorage.getItem("overrideDate");
-
     function updateClock() {
       const now = new Date();
-      const displayDate = dateOverride ? new Date(dateOverride + "T00:00:00") : now;
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-      document.getElementById("clock").textContent = displayDate.toLocaleTimeString('en-US', {
-        timeZone: userTZ,
-        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      const clockEl = document.getElementById("clock");
+      const dateEl = document.getElementById("date-human");
+      const container = document.getElementById("container");
+
+      clockEl.textContent = now.toLocaleTimeString('en-GB', {
+        timeZone: timeZone,
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
       });
 
-      document.getElementById("date-human").textContent = displayDate.toLocaleDateString('en-US', {
-        timeZone: userTZ,
+      dateEl.textContent = now.toLocaleDateString('en-US', {
+        timeZone: timeZone,
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
       });
 
-      document.getElementById("date-yyyymmdd").textContent = formatYYYYMMDD(displayDate);
+      scaleTextToFit(clockEl, container, 500, 2);
+      scaleTextToFit(dateEl, container, 250, 1);
+    }
+
+    function scaleTextToFit(element, container, maxSize = 500, step = 1) {
+      let size = 10;
+      element.style.fontSize = size + 'px';
+
+      while (size < maxSize) {
+        const { width, height } = element.getBoundingClientRect();
+        const { width: cw, height: ch } = container.getBoundingClientRect();
+
+        const maxHeight = element.id === 'clock' ? ch * 2 / 3 : ch / 3;
+        const isMultiline = element.scrollHeight > element.offsetHeight;
+
+        if (width > cw || height > maxHeight || isMultiline) break;
+
+        size += step;
+        element.style.fontSize = size + 'px';
+      }
+
+      element.style.fontSize = (size - step) + 'px';
+    }
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          console.warn(`Error attempting to enable full-screen mode: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
     }
 
     setInterval(updateClock, 1000);
+    updateClock();
   </script>
 </body>
 </html>
