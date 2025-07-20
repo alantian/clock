@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wall Clock</title>
   <style>
     html, body {
@@ -34,7 +34,7 @@
       align-items: center;
     }
 
-    #clock, #date-human {
+    #clock, #date-human, #weather {
       margin: 0;
       line-height: 0.9;
       white-space: nowrap;
@@ -55,12 +55,21 @@
       align-items: center;
       justify-content: center;
     }
+
+    #weather {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.8);
+    }
   </style>
 </head>
 <body ondblclick="toggleFullScreen()">
   <div id="container">
     <h1 id="clock">--:--:--</h1>
     <div id="date-human">Loading date...</div>
+    <div id="weather">Loading weather...</div>
   </div>
 
   <script>
@@ -73,18 +82,74 @@
       const container = document.getElementById("container");
 
       clockEl.textContent = now.toLocaleTimeString('en-GB', {
-        timeZone: timeZone,
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        timeZone,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
         hour12: false
       });
 
       dateEl.textContent = now.toLocaleDateString('en-US', {
-        timeZone: timeZone,
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        timeZone,
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       });
 
       scaleTextToFit(clockEl, container, 500, 2);
       scaleTextToFit(dateEl, container, 250, 1);
+    }
+
+    function fetchWeather() {
+      const weatherEl = document.getElementById("weather");
+
+      if (!navigator.geolocation) {
+        weatherEl.textContent = "Weather: Geolocation not supported.";
+        scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
+        return;
+      }
+
+      weatherEl.textContent = "Weather: Waiting for location permission...";
+      scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
+
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        weatherEl.textContent = "Weather: Waiting for weather data...";
+        scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        const url = `https://wttr.in/${lat},${lon}?format=j1`;
+        const locationUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+
+        const locationResponse = await fetch(locationUrl);
+        const locationData = await locationResponse.json();
+        console.debug("Location API response:", locationData);
+        const city = locationData.address?.city || locationData.address?.town || locationData.address?.village || locationData.address?.state || "your area";
+
+        try {
+          const response = await fetch(url);
+          const data = await response.json();
+          console.debug("Weather API response:", data);
+
+          if ((data.weather && data.weather.length > 0) || data.days) {
+            const today = data.current_condition[0];
+            const tomorrow = data.weather[1];
+
+            const todayText = `Today: ${today.temp_C}°C ${today.weatherDesc[0].value}`;
+            const tomorrowText = tomorrow ? ` / Tomorrow: ${tomorrow.avgtempC}°C ${tomorrow.hourly[4].weatherDesc[0].value}` : '';
+
+            weatherEl.textContent = `Weather (${city}): ${todayText}${tomorrowText}`;
+            scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
+          }
+        } catch (err) {
+          weatherEl.textContent = "Weather: fetch error.";
+          console.error(err);
+          scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
+        }
+      }, () => {
+        weatherEl.textContent = "Weather: Location unavailable. Please allow location access.";
+        scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
+      });
     }
 
     function scaleTextToFit(element, container, maxSize = 500, step = 1) {
@@ -95,7 +160,10 @@
         const { width, height } = element.getBoundingClientRect();
         const { width: cw, height: ch } = container.getBoundingClientRect();
 
-        const maxHeight = element.id === 'clock' ? ch * 2 / 3 : ch / 3;
+        const maxHeight =
+          element.id === 'clock' ? ch * 2 / 3 :
+          element.id === 'date-human' ? ch / 3 : ch / 4;
+
         const isMultiline = element.scrollHeight > element.offsetHeight;
 
         if (width > cw || height > maxHeight || isMultiline) break;
@@ -119,6 +187,7 @@
 
     setInterval(updateClock, 1000);
     updateClock();
+    fetchWeather();
   </script>
 </body>
 </html>
