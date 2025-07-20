@@ -110,46 +110,62 @@
         return;
       }
 
-      weatherEl.textContent = "Weather: Waiting for location permission...";
+      weatherEl.textContent = "Weather: Waiting for location permissions...";
       scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
 
       navigator.geolocation.getCurrentPosition(async (position) => {
-        weatherEl.textContent = "Weather: Waiting for weather data...";
-        scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
-        const url = `https://wttr.in/${lat},${lon}?format=j1`;
-        const locationUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
-
-        const locationResponse = await fetch(locationUrl);
-        const locationData = await locationResponse.json();
-        console.debug("Location API response:", locationData);
-        const city = locationData.address?.city || locationData.address?.town || locationData.address?.village || locationData.address?.state || "your area";
-
+        weatherEl.textContent = "Weather: Waiting for weather data...";
+        scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
+        await renderWeatherFromCoords(lat, lon);
+      }, async () => {
         try {
-          const response = await fetch(url);
-          const data = await response.json();
-          console.debug("Weather API response:", data);
-
-          if ((data.weather && data.weather.length > 0) || data.days) {
-            const today = data.current_condition[0];
-            const tomorrow = data.weather[1];
-
-            const todayText = `Today: ${today.temp_C}°C ${today.weatherDesc[0].value}`;
-            const tomorrowText = tomorrow ? ` / Tomorrow: ${tomorrow.avgtempC}°C ${tomorrow.hourly[4].weatherDesc[0].value}` : '';
-
-            weatherEl.textContent = `Weather (${city}): ${todayText}${tomorrowText}`;
-            scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
-          }
+          const ipRes = await fetch("https://ip-api.com/json/");
+          const ipData = await ipRes.json();
+          console.debug("Fallback IP-based location:", ipData);
+          const { lat, lon, city } = ipData;
+          await renderWeatherFromCoords(lat, lon, city);
         } catch (err) {
-          weatherEl.textContent = "Weather: fetch error.";
-          console.error(err);
+          weatherEl.textContent = "Weather: Location is unavailable.";
           scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
         }
-      }, () => {
-        weatherEl.textContent = "Weather: Location unavailable. Please allow location access.";
-        scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
       });
+    }
+
+    async function renderWeatherFromCoords(lat, lon, fallbackCity) {
+      const weatherEl = document.getElementById("weather");
+      let city = fallbackCity;
+
+      try {
+        if (!city) {
+          const locationUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+          const locationResponse = await fetch(locationUrl);
+          const locationData = await locationResponse.json();
+          console.debug("Location API response:", locationData);
+          city = locationData.address?.city || locationData.address?.town || locationData.address?.village || locationData.address?.state || "your area";
+        }
+
+        const url = `https://wttr.in/${lat},${lon}?format=j1`;
+        const response = await fetch(url);
+        const data = await response.json();
+        console.debug("Weather API response:", data);
+
+        if ((data.weather && data.weather.length > 0) || data.days) {
+          const today = data.current_condition[0];
+          const tomorrow = data.weather[1];
+
+          const todayText = `Today: ${today.temp_C}°C ${today.weatherDesc[0].value}`;
+          const tomorrowText = tomorrow ? ` / Tomorrow: ${tomorrow.avgtempC}°C ${tomorrow.hourly[4].weatherDesc[0].value}` : '';
+
+          weatherEl.textContent = `Weather (${city}): ${todayText}${tomorrowText}`;
+          scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
+        }
+      } catch (err) {
+        weatherEl.textContent = "Weather: Failed to fetch data.";
+        console.error(err);
+        scaleTextToFit(weatherEl, document.getElementById("container"), 200, 1);
+      }
     }
 
     function scaleTextToFit(element, container, maxSize = 500, step = 1) {
